@@ -1,10 +1,11 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from tensorflow.examples.tutorials.mnist import input_data
 
-mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
+mnist = input_data.read_data_sets("../data/mnist", one_hot=True)
 
 LEARNING_RATE = 0.01
-STEPS = 1000
+STEPS = 100001
 BATCHES = 128
 
 w = np.random.normal(size=(784, 10))
@@ -14,18 +15,15 @@ b = np.random.normal(size=(1, 10))
 loss_r = []
 
 def softmax(x):
-    ex = np.sum(np.exp(x), axis=1)  # 1000x1
-    return x / ex  # 1000x10
-
-def relu(x):
-    return x * (x > 0)
-
-def sigmoid(x):
-    return 1 / (np.exp(-1 * x))
-
-def ff(x):
-    f = softmax(np.dot(x, w) + b) # 1000x10
-    return f
+    if len(x.shape) > 1:
+        shiftx = x - np.amax(x, axis=1)[:,None]
+        exps = np.exp(shiftx)
+        x = exps / np.sum(exps, axis=1)[:,None]
+    else:
+        shiftx = x - np.amax(x)
+        exps = np.exp(shiftx)
+        x = exps / np.sum(exps)
+    return x
 
 # MSE
 def loss_mse(y, y_):
@@ -33,15 +31,34 @@ def loss_mse(y, y_):
 
 # cross-entropy
 def loss_cross_entropy(y, y_):
-    return -1 * np.mean(np.sum(y_ * np.log(y), axis=1))
+    cost = - np.sum(np.log(y_[y == 1])) / BATCHES
+    return cost
 
-#
-def bp(x, y_, y):
-
-
+def accuracy(y, y_):
+    acc = np.equal(np.argmax(y, axis=1), np.argmax(y_, axis=1))
+    acc = np.sum(acc) / BATCHES
+    return acc
 
 for step in range(STEPS):
     batch_xs, batch_ys = mnist.train.next_batch(BATCHES)
 
-    y_ = ff(batch_xs)
+    # feedforward networks
+    f = np.dot(batch_xs, w) + b
+    a = softmax(f)
+    y_ = a
 
+    # backpropagetion
+    grad_a = (a - batch_ys) / BATCHES
+    grad_w = np.dot(batch_xs.T, grad_a)
+    grad_b = np.sum(grad_a, axis=0, keepdims=True)
+
+    w -= LEARNING_RATE * grad_w
+    b -= LEARNING_RATE * grad_b
+
+    loss_r.append(loss_cross_entropy(batch_ys, y_))
+    if step % 5000 == 0:
+        acc = accuracy(batch_ys, y_)
+        print("step %r accuracy=%r" % (step, acc))
+
+plt.plot(loss_r[:], range(STEPS))
+plt.show()
